@@ -9,16 +9,31 @@
 #property strict
 
 bool isAutoTradeOn;
-
-
 const int strategyId = 888;
+
+
+enum ORDER_SET
+{
+   ORDER_SET_ALL = -1,
+   ORDER_SET_BUY,
+   ORDER_SET_SELL,
+   ORDER_SET_BUY_LIMIT,
+   ORDER_SET_SELL_LIMIT,
+   ORDER_SET_BUY_STOP,
+   ORDER_SET_SELL_STOP,
+   ORDER_SET_LONG,
+   ORDER_SET_SHORT,
+   ORDER_SET_LIMIT,
+   ORDER_SET_STOP,
+   ORDER_SET_MARKET,
+   ORDER_SET_PENDING
+};
 
 //+------------------------------------------------------------------+
 //| Script program start function                                    |
 //+------------------------------------------------------------------+
 void OnStart()
-  {
-      
+  {     
       // Market Open or Close
       
       // Check Auto Order Function
@@ -26,10 +41,7 @@ void OnStart()
       if (!isAutoTradeOn)
       {
          Alert("Please enable Auto Trading");
-      }
-         
-      
-      
+      }     
       
   }
 //+------------------------------------------------------------------+
@@ -99,14 +111,14 @@ int sendOrder(string symbol, int cmd, double volume, double distance, int slippa
 // --------------------------------
 
 // exit order based on order type
-int exitOrder(int orderId, color aClr = clrNONE,  int slippage = 30)
+bool exitOrderById(int orderId, color aClr = clrNONE,  int slippage = 30)
 {
-   int result = 0;
+   bool result = false;
    
    if (OrderSelect(orderId, SELECT_BY_TICKET))
    {
       RefreshRates();
-      if (OrderType() <= 1) // buy or sell with market order
+      if (OrderType() <= 1) // market order
       {
          result = OrderClose(orderId, OrderLots(), OrderClosePrice(), slippage, aClr);
       } else if (OrderType() > 1) // pending order
@@ -119,9 +131,9 @@ int exitOrder(int orderId, color aClr = clrNONE,  int slippage = 30)
 }
 
 // exit order with defined retry times
-int exitOrderWithRetry(int orderId,  color aClr = clrNONE,  int slippage = 30, int retries = 3, int sleep = 500)
+bool exitOrder(int orderId,  color aClr = clrNONE,  int slippage = 30, int retries = 3, int sleep = 500)
 {
-   int result;
+   bool result = false;
    
    // check condition before closing
    if (!IsConnected())              Print("No Internet connection");
@@ -130,11 +142,10 @@ int exitOrderWithRetry(int orderId,  color aClr = clrNONE,  int slippage = 30, i
    else if (!IsTradeAllowed())      Print("Trade is not allowed in trading platform");
    else 
    
-   result = exitOrder(orderId, aClr, slippage);
+   result = exitOrderById(orderId, aClr, slippage);
+   
    for (int i = 0; i <= retries; i++)
-   {
-      
-      
+   {     
       if (result)
       {
          Print("Closing order " + OrderTicket() + " Successful");
@@ -144,21 +155,80 @@ int exitOrderWithRetry(int orderId,  color aClr = clrNONE,  int slippage = 30, i
          Print("Closing order " + OrderTicket() + " Failed "  + GetLastError());
          Sleep(sleep);
       }
-      
    }
    
    return result;
 }
 
-// order type -1 will close all orders
-void exitOrderAll(int orderType = -1, int strategyId = -1)
+// order type -1 will close all orders else call with OP_BUY/OP_SELL enum for type
+void exitOrdersByType(int type = -1, int strategyId = -1)
 {
    for (int i = OrdersTotal(); i >= 0; i--)
    {
       if (OrderSelect(i, SELECT_BY_POS))
       {
-         if ((orderType == -1 || orderType == OrderType()) && (strategyId == -1 || strategyId == OrderMagicNumber()))
-         exitOrderWithRetry(OrderTicket());
-      }
+         if ((type == -1 || type == OrderType()) &&(strategyId == -1 || strategyId == OrderMagicNumber()))
+         
+         exitOrder(OrderTicket());
+      }   
    }
+}
+
+// exit order based on : market orders, pending orders, limit orders, etc
+void exitOrders(ORDER_SET type = -1, int strategyId = -1)
+{
+   for (int i = OrdersTotal(); i >= 0; i--)
+   {
+      if (OrderSelect(i, SELECT_BY_POS))
+      {
+         if (strategyId = - 1 || strategyId == OrderMagicNumber())
+         {
+            int orderType = OrderType();
+            int orderId = OrderTicket();
+            
+            switch(type)
+            {
+               case ORDER_SET_BUY:
+                  if (orderType == OP_BUY) exitOrder(orderId);
+                  break;
+               case ORDER_SET_SELL:
+                  if (orderType == OP_SELL) exitOrder(orderId);
+                  break;
+               case ORDER_SET_BUY_LIMIT:
+                  if (orderType == OP_BUYLIMIT) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_SELL_LIMIT:
+                  if (orderType == OP_SELLLIMIT) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_BUY_STOP:
+                  if (orderType == OP_BUYSTOP) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_SELL_STOP:
+                  if (orderType == OP_SELLSTOP) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_LONG:
+                  if (orderType == OP_BUY || orderType == OP_BUYSTOP || orderType == OP_BUYLIMIT) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_SHORT:
+                  if (orderType == OP_SELL || orderType == OP_SELLSTOP || orderType == OP_SELLLIMIT) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_LIMIT:
+                  if (orderType == OP_BUYLIMIT || orderType == OP_SELLLIMIT) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_STOP:
+                  if (orderType == OP_BUYSTOP || orderType == OP_SELLSTOP) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_MARKET:
+                  if (orderType <= 1) exitOrder(orderId);               
+                  break;
+               case ORDER_SET_PENDING:
+                  if (orderType > 1) exitOrder(orderId);               
+                  break;
+               default:
+                  exitOrder(orderId);
+
+            }
+         }
+      }
+   }  
 }
