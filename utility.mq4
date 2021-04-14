@@ -44,6 +44,7 @@ double getPipValueFromDigits()
    }
 }
 
+// calculate stop loss price based on expected pips
 double getStopLossPrice(bool isLongPosition, double entryPrice, int maxLossInPips)
 {
    double stopLossPrice;
@@ -62,6 +63,7 @@ double getStopLossPrice(bool isLongPosition, double entryPrice, int maxLossInPip
    return stopLossPrice; 
 }
 
+// calculate take profit price based on expected pips
 double getTakeProfitPrice(bool isLongPosition, double entryPrice, int profitInPips)
 {
    double takeProfit;
@@ -80,4 +82,46 @@ double getTakeProfitPrice(bool isLongPosition, double entryPrice, int profitInPi
    }
    
    return takeProfit;
+}
+
+
+
+
+// check if there is any order in place based on strategy Id
+bool isThereAnyOrderByStrategyId(int strategyId)
+{
+   
+   for (int i = 0; i < OrdersTotal(); i++)
+   {
+     if (OrderSelect(i, SELECT_BY_POS))
+     {
+         if (OrderMagicNumber() == strategyId)
+         {
+            return true;
+         }
+         
+     }
+   }
+   return false;
+}
+
+// check if there is any order in place based on order Id
+bool isThereAnyOrderById(int orderId)
+{
+   
+   for (int i = 0; i < OrdersTotal(); i++)
+   {
+     if (OrderSelect(orderId, SELECT_BY_TICKET))
+     {
+         return true;
+         
+     }
+   }
+   return false;
+}
+
+bool isThereAnyOrder()
+{
+   if (OrdersTotal() > 0) return true;
+   else return false;
 }
