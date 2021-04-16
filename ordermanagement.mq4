@@ -424,19 +424,22 @@ bool modifyOrderWithRetry(int orderId, double newPrice, double newStoploss, doub
 }
 
 
-// modify order to breakeven
-bool modifyOrderBreakEven(int orderId, int threshold, int plus)
+// check if order able to close at breakeven stoploss level
+bool breakEvenOrder(int orderId, int threshold, int plus)
 {
-   bool isBreakEven = false;
-   double point = MarketInfo(OrderSymbol(), MODE_POINT);
+
    if (orderId <= 0)
    {
       Print("Order ID is invalid !");
-      return false;
+      return true;
    }
    
    if (! OrderSelect(orderId, SELECT_BY_TICKET)) return false;
- 
+   
+   bool isBreakEven = true;
+   
+   double point = MarketInfo(OrderSymbol(), MODE_POINT);
+   
    if (OrderType() == OP_BUY)
    {
       double breakEvenStoploss = OrderOpenPrice() + plus * point;
@@ -463,6 +466,92 @@ bool modifyOrderBreakEven(int orderId, int threshold, int plus)
    return isBreakEven;
 }
 
+
+void breakEvenOrders(int threshold, int plus, int strategyId = -1)
+{
+   for (int i = 0; i <= OrdersTotal(); i++)
+   {
+   
+      if (OrderSelect(i, SELECT_BY_POS))
+      {
+         if (strategyId == -1 || strategyId == OrderMagicNumber())
+         {
+            breakEvenOrder(OrderTicket(), threshold, plus);
+         }      
+      }
+
+   }
+}
+
+
+bool trailingStopOrder(int orderId, int trailStop,int threshold, int minStoplossDistance)
+{
+   if (orderId <= 0) return true; // nothing todo, return early
+   
+   if (!OrderSelect(orderId, SELECT_BY_TICKET)) return false; // nothing todo, return early
+   
+   double point = MarketInfo(OrderSymbol(), MODE_POINT);
+ 
+   bool isTrailing = true;
+   
+   if (OrderType() == OP_BUY)
+   {
+      double trailStoploss          = OrderClosePrice() - trailStop * point;
+      double thresholdPrice         = OrderOpenPrice() + threshold * point;
+      double thresholdStoploss      = thresholdPrice - trailStop * point;
+      double stoplossDistance       = trailStoploss - OrderStopLoss();
+      
+      if (OrderStopLoss() == 0 || compareDouble(thresholdStoploss, OrderClosePrice(), Digits) > 0)
+      {
+         if (compareDouble(OrderClosePrice(), thresholdPrice, Digits) >= 0) // above threshold price, modify
+         {
+            isTrailing = modifyOrderWithRetry(orderId, OrderOpenPrice(), thresholdStoploss, OrderTakeProfit());      
+         }
+      } else if (compareDouble(stoplossDistance, minStoplossDistance, Digits) >= 0) // as long as distance between SL comply, modify
+      {
+         isTrailing = modifyOrderWithRetry(orderId, OrderOpenPrice(), trailStoploss, OrderTakeProfit());
+      }
+      
+   } else if (OrderType() == OP_SELL)
+   {
+      double trailStoploss          = OrderClosePrice() + trailStop * point;
+      double thresholdPrice         = OrderOpenPrice() - threshold * point;
+      double thresholdStoploss      = thresholdPrice + trailStop * point;
+      double stoplossDistance    = OrderStopLoss() - trailStoploss ;
+      
+      if (OrderStopLoss() == 0 || compareDouble(thresholdStoploss, OrderClosePrice(), Digits) < 0)
+      {
+         if (compareDouble(OrderClosePrice(), thresholdPrice, Digits) <= 0) // below threshold price, modify
+         {
+            isTrailing = modifyOrderWithRetry(orderId, OrderOpenPrice(), thresholdStoploss, OrderTakeProfit());      
+         }
+      } else if (compareDouble(stoplossDistance, minStoplossDistance, Digits) >= 0) // distance between SL comply, modify
+      {
+         isTrailing = modifyOrderWithRetry(orderId, OrderOpenPrice(), trailStoploss, OrderTakeProfit());
+      }       
+   }
+   
+   
+   return isTrailing;
+         
+}
+
+
+
+void trailingStopOrders(int trailStop,int threshold, int minStoplossDistance, int strategyId = -1)
+{
+   for (int i = 0; i <= OrdersTotal(); i++)
+   {
+      if (OrderSelect(i, SELECT_BY_POS))
+      {
+         if (strategyId == -1 || strategyId == OrderMagicNumber())
+         {
+            trailingStopOrder(OrderTicket(), trailStop, threshold, minStoplossDistance);
+         }      
+      }
+
+   }
+}
 
 
 //---------------

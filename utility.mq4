@@ -32,39 +32,28 @@ int compareDouble(double aDouble, double bDouble, int precision)
 }
 
 
-double getPipValueFromDigits()
-{
-   if (_Digits >= 4) {
-      // it is not trading Japanese Yen
-      return 0.0001;
-   
-   } else {
-      // it is a japanese yen pair
-      return 0.01;
-   }
-}
 
 // calculate stop loss price based on expected pips
-double getStopLossPrice(bool isLongPosition, double entryPrice, int maxLossInPips)
+double getStopLossPriceByPips(string symbol, bool isBuy, double entryPrice, int maxLossInPips)
 {
    double stopLossPrice;
    
-   if (isLongPosition) {
-      // expect price will goes up. 
+   if (isBuy) { 
       // Stop loss when lower than entry price at x PIPs
-      stopLossPrice = entryPrice - ( maxLossInPips * 0.0001 );
+      stopLossPrice = entryPrice -  maxLossInPips * MarketInfo(symbol, MODE_POINT);    
+      
       
    } else {
       // then it is a sell / short position, expect profit at lower
       // stop loss will be higher than entry price at x PIPs
-      stopLossPrice = entryPrice + ( maxLossInPips * 0.0001 );
+      stopLossPrice = entryPrice +  maxLossInPips * MarketInfo(symbol, MODE_POINT);
    }
    
    return stopLossPrice; 
 }
 
 // calculate take profit price based on expected pips
-double getTakeProfitPrice(bool isLongPosition, double entryPrice, int profitInPips)
+double getTakeProfitPrice(string symbol, bool isLongPosition, double entryPrice, int profitInPips)
 {
    double takeProfit;
    
@@ -72,13 +61,13 @@ double getTakeProfitPrice(bool isLongPosition, double entryPrice, int profitInPi
    {
       // entry Price is Ask
       // double entryPrice = Ask;
-      takeProfit = entryPrice + profitInPips * 0.0001;
+      takeProfit = entryPrice + profitInPips * MarketInfo(symbol, MODE_POINT);
       
    } else 
    {
       // entry Price is Bid
       // double entryPrice = Bid;
-      takeProfit = entryPrice - profitInPips * 0.0001;
+      takeProfit = entryPrice - profitInPips * MarketInfo(symbol, MODE_POINT);
    }
    
    return takeProfit;
@@ -88,14 +77,14 @@ double getTakeProfitPrice(bool isLongPosition, double entryPrice, int profitInPi
 
 
 // check if there is any order in place based on strategy Id
-bool isThereAnyOrderByStrategyId(int strategyId)
+bool isThereAnyOrder(int strategyId = -1)
 {
    
    for (int i = 0; i < OrdersTotal(); i++)
    {
      if (OrderSelect(i, SELECT_BY_POS))
      {
-         if (OrderMagicNumber() == strategyId)
+         if (strategyId == -1 || OrderMagicNumber() == strategyId)
          {
             return true;
          }
@@ -118,10 +107,4 @@ bool isThereAnyOrderById(int orderId)
      }
    }
    return false;
-}
-
-bool isThereAnyOrder()
-{
-   if (OrdersTotal() > 0) return true;
-   else return false;
 }
