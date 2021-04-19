@@ -108,3 +108,77 @@ bool isThereAnyOrderById(int orderId)
    }
    return false;
 }
+
+
+bool isNewBar(string symbol, int timeframe, bool loadAtNewBar = false)
+{
+   static datetime barTime = 0;
+   static double openPrice = 0;
+   
+   datetime currentBarTime       = iTime(symbol, timeframe, 0);
+   double   currentBarOpenPrice  = iOpen(symbol, timeframe, 0);
+   
+   int digits = (int) MarketInfo(symbol, MODE_DIGITS);
+   
+   if (barTime == 0 && openPrice == 0) // first time bot enter chart
+   {
+      barTime     = currentBarTime;
+      openPrice   = currentBarOpenPrice;
+      
+      if (loadAtNewBar)
+      {
+         return false;
+      }
+      return true;
+   } else 
+   if (currentBarTime > barTime && compareDouble(currentBarOpenPrice, openPrice, digits) != 0) //  new bar formed
+   {
+      barTime     = currentBarTime;
+      openPrice   = currentBarOpenPrice;     
+      return true;
+   }
+
+   return false;
+}
+
+// check if a certain datetime is between human hour and minutes time
+bool isTimeBetween(datetime time, int startHour, int startMinute,  int endHour, int endMinute, int gmt = 0)
+{
+
+   if (gmt != 0)
+   {
+      startHour += gmt;
+      endHour   += gmt;
+   }
+   
+   if (startHour > 23)     startHour = (startHour - 23) - 1;
+   else if (startHour < 0) startHour = (startHour + 23) + 1;
+   
+   if (endHour > 23)     endHour = (startHour - 23) - 1;
+   else if (endHour < 0) endHour = (startHour + 23) + 1;   
+
+   int hour = TimeHour(time);
+   int minutes = TimeMinute(time);
+
+   int timeInSeconds       = (hour * 3600) + (minutes * 60);
+   int timeStartInSeconds  = (startHour * 3600) + (startMinute * 60);
+   int timeEndInSeconds    = (endHour * 3600) + (endMinute * 60);
+   
+   if (timeStartInSeconds == timeEndInSeconds) return true; // INTERPRET as different day
+   
+   // check if 1000 is between 9 am and 3 pm
+   else if (timeStartInSeconds < timeEndInSeconds)
+   {
+      // t: 1000 s : 900 e : 1100 
+      if (timeInSeconds >= timeStartInSeconds && timeInSeconds < timeEndInSeconds ) // within same day
+      return true;
+      
+   }
+   else if (timeStartInSeconds < timeEndInSeconds) 
+   {
+      if (timeEndInSeconds >= timeStartInSeconds || timeEndInSeconds < timeEndInSeconds)// does not belong to same day
+      return true;
+   }
+   
+   return false;
+}

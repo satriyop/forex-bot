@@ -59,17 +59,17 @@ bool isThereAnyOrder(int strategyId)
 
 // pending order distance must > 0, expire > 0
 int sendOrderByPips(string symbol, int cmd, double volume, double distance, int slippage, double stoplossInPips, 
-              double takeprofitInPips, string comment = NULL, int magic = 888, int expire = 0, int a_clr = clrGreen)
+              double takeprofitInPips, string comment = NULL, int magic = 888, int expireInSecond = 0, int a_clr = clrGreen)
 {
    double price = 0;
    double stoplossPrice = 0;
    double takeprofitPrice = 0;
    double point = MarketInfo(symbol, MODE_POINT);
+   datetime expiration = 0;
    
-   
-   if (expire > 0 && distance > 0) // pending order
+   if (expireInSecond > 0 && distance > 0) // pending order
    {
-      expire = MarketInfo(symbol, MODE_TIME) + expire;
+      expiration = MarketInfo(symbol, MODE_TIME) + expireInSecond;
    }
    
    // refresh price based on latest tick
@@ -92,7 +92,7 @@ int sendOrderByPips(string symbol, int cmd, double volume, double distance, int 
    }
   
    // sending the order to broker
-   return OrderSend(symbol, cmd, volume, price, slippage, stoplossPrice, takeprofitPrice, comment, magic, expire, a_clr);
+   return OrderSend(symbol, cmd, volume, price, slippage, stoplossPrice, takeprofitPrice, comment, magic, expiration, a_clr);
 
 }
 
@@ -353,7 +353,7 @@ bool modifyOrder(int orderId, double newPrice, double newStoploss, double newTak
    
    if (OrderSelect(orderId, SELECT_BY_TICKET))
    {
-      if (OrderType() <= 1) // market order
+      if (OrderType() == OP_BUY || OrderType() == OP_SELL) // market order 
       {
          // check if there is no changes in order      
          if (compareDouble(newStoploss, OrderStopLoss() == 0) && compareDouble(newTakeprofit, OrderTakeProfit()) == 0 ) 
@@ -361,27 +361,27 @@ bool modifyOrder(int orderId, double newPrice, double newStoploss, double newTak
             Print("Stoploss and Profit are the same, Nothing todo");
             return true;
          } 
-         newPrice = OrderOpenPrice();
+         newPrice = OrderOpenPrice(); // market order can not change the entry price
       
-      } else if (OrderType() > 1) // pending order
+      } else if (OrderType() > 1) // pending order LIMIT/STOP
       {
       
          if (compareDouble(newPrice, OrderOpenPrice()) == 0 && compareDouble(newStoploss, OrderStopLoss() == 0) 
-               && compareDouble(newTakeprofit, OrderTakeProfit()) == 0 && newExpire == OrderExpiration()) 
+               && compareDouble(newTakeprofit, OrderTakeProfit()) == 0 
+               && newExpire == OrderExpiration()) 
+               
          {
             Print("New price, new stoploss,  new take profit, expiration are the same as old order, Nothing todo");
             return true;
          }       
       
-         newPrice = NormalizeDouble(newPrice, MarketInfo(OrderSymbol(), MODE_DIGITS));
+         newPrice    = NormalizeDouble(newPrice, MarketInfo(OrderSymbol(), MODE_DIGITS));
+         newExpire   = OrderExpiration();
       }
       
       newStoploss     = NormalizeDouble(newStoploss, MarketInfo(OrderSymbol(), MODE_DIGITS));
       newTakeprofit   = NormalizeDouble(newTakeprofit, MarketInfo(OrderSymbol(), MODE_DIGITS));
-      newExpire          = OrderExpiration() + newExpire;
-      
-
-      
+     
       isModified = OrderModify(orderId, newPrice, newStoploss, newTakeprofit,newExpire, a_clr);
       
    }
@@ -427,14 +427,9 @@ bool modifyOrderWithRetry(int orderId, double newPrice, double newStoploss, doub
 // check if order able to close at breakeven stoploss level
 bool breakEvenOrder(int orderId, int threshold, int plus)
 {
-
-   if (orderId <= 0)
-   {
-      Print("Order ID is invalid !");
-      return true;
-   }
+   if (orderId <= 0) return true; // nothing todo, check again next tick
    
-   if (! OrderSelect(orderId, SELECT_BY_TICKET)) return false;
+   if (! OrderSelect(orderId, SELECT_BY_TICKET)) return false; // check the error if this fuc return false
    
    bool isBreakEven = true;
    
@@ -476,7 +471,10 @@ void breakEvenOrders(int threshold, int plus, int strategyId = -1)
       {
          if (strategyId == -1 || strategyId == OrderMagicNumber())
          {
-            breakEvenOrder(OrderTicket(), threshold, plus);
+            if (! breakEvenOrder(OrderTicket(), threshold, plus))
+            {
+               Print("Error modifiying ticket " , + GetLastError() + " Order Id " + OrderTicket());
+            }
          }      
       }
 
@@ -486,9 +484,9 @@ void breakEvenOrders(int threshold, int plus, int strategyId = -1)
 
 bool trailingStopOrder(int orderId, int trailStop,int threshold, int minStoplossDistance)
 {
-   if (orderId <= 0) return true; // nothing todo, return early
+   if (orderId <= 0) return true; // nothing todo, return early, check again next tick
    
-   if (!OrderSelect(orderId, SELECT_BY_TICKET)) return false; // nothing todo, return early
+   if (!OrderSelect(orderId, SELECT_BY_TICKET)) return false; // check the error if this fuc return false
    
    double point = MarketInfo(OrderSymbol(), MODE_POINT);
  
@@ -535,7 +533,6 @@ bool trailingStopOrder(int orderId, int trailStop,int threshold, int minStoploss
    return isTrailing;
          
 }
-
 
 
 void trailingStopOrders(int trailStop,int threshold, int minStoplossDistance, int strategyId = -1)
