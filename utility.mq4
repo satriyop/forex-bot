@@ -142,7 +142,7 @@ bool isNewBar(string symbol, int timeframe, bool loadAtNewBar = false)
 }
 
 // check if a certain datetime is between human hour and minutes time
-bool isTimeBetween(datetime time, int startHour, int startMinute,  int endHour, int endMinute, int gmt = 0)
+bool isInRangeTime(datetime time, int startHour, int startMinute,  int endHour, int endMinute, int gmt = 0)
 {
 
    if (gmt != 0)
